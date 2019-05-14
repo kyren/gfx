@@ -253,6 +253,15 @@ impl PhysicalDevice {
         #[cfg(target_arch = "wasm32")]
         let context = {
             use wasm_bindgen::JsCast;
+            let options = js_sys::JSON::parse(
+                r#"{
+                    "antialias": false,
+                    "sencil": false,
+                    "depth": false,
+                    "alpha": false
+                }"#
+            ).unwrap();
+
             let canvas = web_sys::window()
                 .unwrap()
                 .document()
@@ -262,7 +271,7 @@ impl PhysicalDevice {
                 .dyn_into::<web_sys::HtmlCanvasElement>()
                 .unwrap();
             let webgl2_context = canvas
-                .get_context("webgl2")
+                .get_context_with_context_options("webgl2", &options.into())
                 .unwrap()
                 .unwrap()
                 .dyn_into::<web_sys::WebGl2RenderingContext>()
