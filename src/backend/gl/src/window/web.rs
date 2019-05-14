@@ -5,9 +5,20 @@ use crate::{native, Backend as B, Device, PhysicalDevice, QueueFamily};
 use glow::Context;
 
 fn get_window_extent(window: &Window) -> image::Extent {
+    use wasm_bindgen::JsCast;
+
+    let canvas = web_sys::window()
+        .unwrap()
+        .document()
+        .unwrap()
+        .get_element_by_id(&window.canvas_id)
+        .unwrap()
+        .dyn_into::<web_sys::HtmlCanvasElement>()
+        .unwrap();
+
     image::Extent {
-        width: 640 as image::Size,
-        height: 480 as image::Size,
+        width: canvas.width() as image::Size,
+        height: canvas.height() as image::Size,
         depth: 1,
     }
 }
@@ -20,8 +31,10 @@ struct PixelFormat {
     multisampling: Option<u32>,
 }
 
-#[derive(Clone, Copy, Debug)]
-pub struct Window;
+#[derive(Clone, Debug)]
+pub struct Window {
+    pub canvas_id: String,
+}
 
 impl Window {
     fn get_pixel_format(&self) -> PixelFormat {
@@ -66,7 +79,7 @@ pub struct Surface {
 
 impl Surface {
     pub fn from_window(window: Window) -> Self {
-        Surface { window: Window }
+        Surface { window }
     }
 
     pub fn get_window(&self) -> &Window {
@@ -252,7 +265,7 @@ impl Device {
 impl hal::Instance for Surface {
     type Backend = B;
     fn enumerate_adapters(&self) -> Vec<hal::Adapter<B>> {
-        let adapter = PhysicalDevice::new_adapter(|s| 0 as *const _, Some("canvas")); // TODO: Move to `self` like native/window
+        let adapter = PhysicalDevice::new_adapter(|s| 0 as *const _, Some(&self.window.canvas_id)); // TODO: Move to `self` like native/window
         vec![adapter]
     }
 }
