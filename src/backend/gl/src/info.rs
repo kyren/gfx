@@ -189,6 +189,8 @@ pub struct PrivateCaps {
     pub depth_range_f64_precision: bool,
     /// Whether draw buffers are supported
     pub draw_buffers: bool,
+    /// Whether glEnablei / glDisablei / glBlendEquationi are available
+    pub draw_buffer_settings: bool,
 }
 
 /// OpenGL implementation information
@@ -482,7 +484,8 @@ pub(crate) fn query_all(gl: &GlContainer) -> (Info, Features, LegacyFeatures, Li
             && info.is_supported(&[Ext("GL_EXT_texture_filter_anisotropic")]),
         emulate_map, // TODO
         depth_range_f64_precision: !info.version.is_embedded, // TODO
-        draw_buffers: !info.version.is_embedded, // TODO
+        draw_buffers: info.is_supported(&[Core(2, 0), Es(3, 0)]),
+        draw_buffer_settings: info.is_supported(&[Core(4, 0), Es(3, 2)]) && !info.version.is_embedded,
     };
 
     (info, features, legacy, limits, private)

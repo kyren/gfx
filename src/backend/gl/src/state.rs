@@ -157,32 +157,53 @@ pub(crate) fn bind_blend(gl: &GlContainer, desc: &pso::ColorBlendDesc) {
     }
 }
 
-pub(crate) fn bind_blend_slot(gl: &GlContainer, slot: ColorSlot, desc: &pso::ColorBlendDesc, supports_draw_buffers: bool) {
+pub(crate) fn bind_blend_slot(gl: &GlContainer, slot: ColorSlot, desc: &pso::ColorBlendDesc, supports_draw_buffer_settings: bool) {
     use crate::hal::pso::ColorMask as Cm;
 
     match desc.1 {
         pso::BlendState::On { color, alpha } => unsafe {
             let (color_eq, color_src, color_dst) = map_blend_op(color);
             let (alpha_eq, alpha_src, alpha_dst) = map_blend_op(alpha);
-            if supports_draw_buffers {
+            if supports_draw_buffer_settings {
                 gl.enable_draw_buffer(glow::BLEND, slot as _);
                 gl.blend_equation_separate_draw_buffer(slot as _, color_eq, alpha_eq);
                 gl.blend_func_separate_draw_buffer(
                     slot as _, color_src, color_dst, alpha_src, alpha_dst,
+                );
+            } else if slot == 0 {
+                gl.enable(glow::BLEND);
+                gl.blend_equation_separate(color_eq, alpha_eq);
+                gl.blend_func_separate(
+                    color_src, color_dst, alpha_src, alpha_dst,
                 );
             } else {
                 warn!("Draw buffers are not supported");
             }
         },
         pso::BlendState::Off => unsafe {
-            gl.disable_draw_buffer(glow::BLEND, slot as _);
+            if supports_draw_buffer_settings {
+                gl.disable_draw_buffer(glow::BLEND, slot as _);
+            } else if slot == 0 {
+                gl.disable(glow::BLEND);
+            } else {
+                warn!("Draw buffers are not supported");
+            }
         },
     };
 
-    if supports_draw_buffers {
+    if supports_draw_buffer_settings {
         unsafe {
             gl.color_mask_draw_buffer(
                 slot as _,
+                desc.0.contains(Cm::RED) as _,
+                desc.0.contains(Cm::GREEN) as _,
+                desc.0.contains(Cm::BLUE) as _,
+                desc.0.contains(Cm::ALPHA) as _,
+            );
+        }
+    } else if slot == 0 {
+        unsafe {
+            gl.color_mask(
                 desc.0.contains(Cm::RED) as _,
                 desc.0.contains(Cm::GREEN) as _,
                 desc.0.contains(Cm::BLUE) as _,
