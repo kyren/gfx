@@ -7,6 +7,8 @@ use crate::hal::{format, image as i, pass, pso};
 
 use crate::{Backend, GlContext};
 
+pub type TextureType = u32;
+
 pub type VertexArray = <GlContext as glow::Context>::VertexArray;
 pub type RawBuffer = <GlContext as glow::Context>::Buffer;
 pub type Shader = <GlContext as glow::Context>::Shader;
@@ -154,7 +156,7 @@ pub struct Image {
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub enum ImageKind {
     Surface(Surface),
-    Texture(Texture),
+    Texture(Texture, TextureType),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
@@ -168,8 +170,8 @@ pub enum FatSampler {
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub enum ImageView {
     Surface(Surface),
-    Texture(Texture, i::Level),
-    TextureLayer(Texture, i::Level, i::Layer),
+    Texture(Texture, TextureType, i::Level),
+    TextureLayer(Texture, TextureType, i::Level, i::Layer),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
@@ -181,7 +183,7 @@ pub(crate) enum DescSetBindings {
         offset: i32,
         size: i32,
     },
-    Texture(pso::DescriptorBinding, Texture),
+    Texture(pso::DescriptorBinding, Texture, TextureType),
     Sampler(pso::DescriptorBinding, Sampler),
     SamplerInfo(pso::DescriptorBinding, i::SamplerInfo),
 }

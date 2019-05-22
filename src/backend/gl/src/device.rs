@@ -108,22 +108,22 @@ impl Device {
             n::ImageView::Surface(surface) => unsafe {
                 gl.framebuffer_renderbuffer(point, attachment, glow::RENDERBUFFER, Some(surface));
             },
-            n::ImageView::Texture(texture, level) => unsafe {
-                gl.bind_texture(glow::TEXTURE_2D, Some(texture));
+            n::ImageView::Texture(texture, textype, level) => unsafe {
+                gl.bind_texture(textype, Some(texture));
                 gl.framebuffer_texture_2d(
                     point,
                     attachment,
-                    glow::TEXTURE_2D,
+                    textype,
                     Some(texture),
                     level as _,
                 );
             },
-            n::ImageView::TextureLayer(texture, level, layer) => unsafe {
-                gl.bind_texture(glow::TEXTURE_2D, Some(texture));
+            n::ImageView::TextureLayer(texture, textype, level, layer) => unsafe {
+                gl.bind_texture(textype, Some(texture));
                 gl.framebuffer_texture_3d(
                     point,
                     attachment,
-                    glow::TEXTURE_2D,
+                    textype,
                     Some(texture),
                     level as _,
                     layer as _,
@@ -137,10 +137,10 @@ impl Device {
             n::ImageView::Surface(surface) => unsafe {
                 gl.framebuffer_renderbuffer(point, attachment, glow::RENDERBUFFER, Some(surface));
             },
-            n::ImageView::Texture(texture, level) => unsafe {
+            n::ImageView::Texture(texture, _, level) => unsafe {
                 gl.framebuffer_texture(point, attachment, Some(texture), level as _);
             },
-            n::ImageView::TextureLayer(texture, level, layer) => unsafe {
+            n::ImageView::TextureLayer(texture, _, level, layer) => unsafe {
                 gl.framebuffer_texture_layer(
                     point,
                     attachment,
@@ -754,30 +754,32 @@ impl d::Device<B> for Device {
         let mut uniforms = Vec::new();
         {
             let gl = &self.share.context;
+
             let count = gl.get_active_uniforms(program);
+            if count != 0 {
+                let mut offset = 0;
 
-            let mut offset = 0;
+                for uniform in 0..count {
+                    let glow::ActiveUniform {
+                        size,
+                        utype,
+                        name,
+                    } = gl.get_active_uniform(program, uniform).unwrap();
 
-            for uniform in 0..count {
-                let glow::ActiveUniform {
-                    size,
-                    utype,
-                    name,
-                } = gl.get_active_uniform(program, uniform).unwrap();
+                    let location = gl.get_uniform_location(program, &name).unwrap();
 
-                let location = gl.get_uniform_location(program, &name).unwrap();
+                    // Sampler2D won't show up in UniformLocation and the only other uniforms
+                    // should be push constants
+                    uniforms.push(n::UniformDesc {
+                        location,
+                        offset,
+                        utype,
+                    });
 
-                // Sampler2D won't show up in UniformLocation and the only other uniforms
-                // should be push constants
-                uniforms.push(n::UniformDesc {
-                    location: location as _,
-                    offset,
-                    utype,
-                });
-
-                offset = size as _;
+                    offset += size as u32;
+                }
             }
-        }        
+        }
 
         Ok(n::GraphicsPipeline {
             program,
@@ -901,6 +903,10 @@ impl d::Device<B> for Device {
 
             match attachment.format {
                 Some(Format::Rgba8Unorm) => {
+                    render_attachments.push(color_attachment);
+                    color_attachment_index += 1;
+                }
+                Some(Format::Bgra8Unorm) => {
                     render_attachments.push(color_attachment);
                     color_attachment_index += 1;
                 }
@@ -1179,6 +1185,7 @@ impl d::Device<B> for Device {
 
         let (int_format, iformat, itype) = match format {
             Format::Rgba8Unorm => (glow::RGBA8, glow::RGBA, glow::UNSIGNED_BYTE),
+            Format::Bgra8Unorm => (glow::RGBA8, glow::BGRA, glow::UNSIGNED_BYTE),
             Format::Rgba8Srgb => (glow::SRGB8_ALPHA8, glow::RGBA, glow::UNSIGNED_BYTE),
             Format::D32Sfloat => (
                 glow::DEPTH32F_STENCIL8,
@@ -1230,10 +1237,48 @@ impl d::Device<B> for Device {
                             h = std::cmp::max(h / 2, 1);
                         }
                     }
+                    n::ImageKind::Texture(name, glow::TEXTURE_2D)
+                }
+                i::Kind::D2(w, h, l, 1) => {
+                    gl.bind_texture(glow::TEXTURE_2D_ARRAY, Some(name));
+                    if self.share.private_caps.image_storage {
+                        gl.tex_storage_3d(
+                            glow::TEXTURE_2D_ARRAY,
+                            num_levels as _,
+                            int_format,
+                            w as _,
+                            h as _,
+                            l as _,
+                        );
+                    } else {
+                        gl.tex_parameter_i32(
+                            glow::TEXTURE_2D_ARRAY,
+                            glow::TEXTURE_MAX_LEVEL,
+                            (num_levels - 1) as _,
+                        );
+                        let mut w = w;
+                        let mut h = h;
+                        for i in 0..num_levels {
+                            gl.tex_image_3d(
+                                glow::TEXTURE_2D_ARRAY,
+                                i as _,
+                                int_format as _,
+                                w as _,
+                                h as _,
+                                l as _,
+                                0,
+                                iformat,
+                                itype,
+                                None,
+                            );
+                            w = std::cmp::max(w / 2, 1);
+                            h = std::cmp::max(h / 2, 1);
+                        }
+                    }
+                    n::ImageKind::Texture(name, glow::TEXTURE_2D_ARRAY)
                 }
                 _ => unimplemented!(),
-            };
-            n::ImageKind::Texture(name)
+            }
         } else {
             let name = gl.create_renderbuffer().unwrap();
             match kind {
@@ -1316,13 +1361,14 @@ impl d::Device<B> for Device {
                     )))
                 }
             }
-            n::ImageKind::Texture(texture) => {
+            n::ImageKind::Texture(texture, textype) => {
                 //TODO: check that `level` exists
                 if range.layers.start == 0 {
-                    Ok(n::ImageView::Texture(texture, level))
+                    Ok(n::ImageView::Texture(texture, textype, level))
                 } else if range.layers.start + 1 == range.layers.end {
                     Ok(n::ImageView::TextureLayer(
                         texture,
+                        textype,
                         level,
                         range.layers.start,
                     ))
@@ -1394,9 +1440,9 @@ impl d::Device<B> for Device {
                     }
                     pso::Descriptor::CombinedImageSampler(view, _layout, sampler) => {
                         match view {
-                            n::ImageView::Texture(tex, _)
-                            | n::ImageView::TextureLayer(tex, _, _) => {
-                                bindings.push(n::DescSetBindings::Texture(binding, *tex))
+                            n::ImageView::Texture(tex, textype, _)
+                            | n::ImageView::TextureLayer(tex, textype, _, _) => {
+                                bindings.push(n::DescSetBindings::Texture(binding, *tex, *textype))
                             }
                             n::ImageView::Surface(_) => unimplemented!(),
                         }
@@ -1409,8 +1455,8 @@ impl d::Device<B> for Device {
                         }
                     }
                     pso::Descriptor::Image(view, _layout) => match view {
-                        n::ImageView::Texture(tex, _) | n::ImageView::TextureLayer(tex, _, _) => {
-                            bindings.push(n::DescSetBindings::Texture(binding, *tex))
+                        n::ImageView::Texture(tex, textype, _) | n::ImageView::TextureLayer(tex, textype, _, _) => {
+                            bindings.push(n::DescSetBindings::Texture(binding, *tex, *textype))
                         }
                         n::ImageView::Surface(_) => panic!(
                             "Texture was created with only render target usage which is invalid."
@@ -1493,8 +1539,13 @@ impl d::Device<B> for Device {
         }
     }
 
-    unsafe fn get_fence_status(&self, _: &n::Fence) -> Result<bool, d::DeviceLost> {
-        unimplemented!()
+    unsafe fn get_fence_status(&self, fence: &n::Fence) -> Result<bool, d::DeviceLost> {
+        let gl = &self.share.context;
+        if let Some(sync) = fence.0.get() {
+            Ok(gl.get_sync_status(sync) == glow::SIGNALED)
+        } else {
+            Ok(false)
+        }
     }
 
     unsafe fn free_memory(&self, _memory: n::Memory) {
@@ -1562,7 +1613,7 @@ impl d::Device<B> for Device {
         let gl = &self.share.context;
         match image.kind {
             n::ImageKind::Surface(rb) => gl.delete_renderbuffer(rb),
-            n::ImageKind::Texture(t) => gl.delete_texture(t),
+            n::ImageKind::Texture(t, _) => gl.delete_texture(t),
         }
     }
 

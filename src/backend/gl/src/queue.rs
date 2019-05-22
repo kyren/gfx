@@ -160,10 +160,10 @@ impl CommandQueue {
             &native::ImageView::Surface(surface) => unsafe {
                 gl.framebuffer_renderbuffer(point, attachment, glow::RENDERBUFFER, Some(surface));
             },
-            &native::ImageView::Texture(texture, level) => unsafe {
+            &native::ImageView::Texture(texture, _, level) => unsafe {
                 gl.framebuffer_texture(point, attachment, Some(texture), level as i32);
             },
-            &native::ImageView::TextureLayer(texture, level, layer) => unsafe {
+            &native::ImageView::TextureLayer(texture, _, level, layer) => unsafe {
                 gl.framebuffer_texture_layer(
                     point,
                     attachment,
@@ -595,9 +595,10 @@ impl CommandQueue {
                 gl.bind_buffer(glow::PIXEL_UNPACK_BUFFER, None);
                 gl.bind_buffer(glow::PIXEL_PACK_BUFFER, None);
             },
-            com::Command::CopyBufferToTexture(buffer, texture, ref r) => unsafe {
+            com::Command::CopyBufferToTexture(buffer, texture, textype, ref r) => unsafe {
                 // TODO: Fix format and active texture
                 assert_eq!(r.image_offset.z, 0);
+                assert_eq!(textype, glow::TEXTURE_2D);
                 let gl = &self.share.context;
                 gl.active_texture(glow::TEXTURE0);
                 gl.bind_buffer(glow::PIXEL_UNPACK_BUFFER, Some(buffer));
@@ -618,10 +619,11 @@ impl CommandQueue {
             com::Command::CopyBufferToSurface(..) => {
                 unimplemented!() //TODO: use FBO
             }
-            com::Command::CopyTextureToBuffer(texture, buffer, ref r) => unsafe {
+            com::Command::CopyTextureToBuffer(texture, textype, buffer, ref r) => unsafe {
                 // TODO: Fix format and active texture
                 // TODO: handle partial copies gracefully
                 assert_eq!(r.image_offset, hal::image::Offset { x: 0, y: 0, z: 0 });
+                assert_eq!(textype, glow::TEXTURE_2D);
                 let gl = &self.share.context;
                 gl.active_texture(glow::TEXTURE0);
                 gl.bind_buffer(glow::PIXEL_PACK_BUFFER, Some(buffer));
@@ -652,27 +654,27 @@ impl CommandQueue {
                 let gl = &self.share.context;
                 gl.bind_buffer_range(target, index, Some(buffer), offset, size);
             },
-            com::Command::BindTexture(index, texture) => unsafe {
+            com::Command::BindTexture(index, texture, textype) => unsafe {
                 let gl = &self.share.context;
                 gl.active_texture(glow::TEXTURE0 + index);
-                gl.bind_texture(glow::TEXTURE_2D, Some(texture));
+                gl.bind_texture(textype, Some(texture));
             },
             com::Command::BindSampler(index, sampler) => unsafe {
                 let gl = &self.share.context;
                 gl.bind_sampler(index, Some(sampler));
             },
-            com::Command::SetTextureSamplerSettings(index, texture, ref sinfo) => unsafe {
+            com::Command::SetTextureSamplerSettings(index, texture, textype, ref sinfo) => unsafe {
                 let gl = &self.share.context;
                 gl.active_texture(glow::TEXTURE0 + index);
-                gl.bind_texture(glow::TEXTURE_2D, Some(texture));
+                gl.bind_texture(textype, Some(texture));
 
                 // TODO: Optimization: only change texture properties that have changed.
                 device::set_sampler_info(
                     &self.share,
                     &sinfo,
-                    |a, b| gl.tex_parameter_f32(glow::TEXTURE_2D, a, b),
-                    |a, b| gl.tex_parameter_f32_slice(glow::TEXTURE_2D, a, &b),
-                    |a, b| gl.tex_parameter_i32(glow::TEXTURE_2D, a, b),
+                    |a, b| gl.tex_parameter_f32(textype, a, b),
+                    |a, b| gl.tex_parameter_f32_slice(textype, a, &b),
+                    |a, b| gl.tex_parameter_i32(textype, a, b),
                 );
             }, /*
             com::Command::BindConstantBuffer(pso::ConstantBufferParam(buffer, _, slot)) => unsafe {
