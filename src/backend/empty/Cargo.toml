@@ -13,4 +13,6 @@ name = "gfx_backend_empty"
 
 [dependencies]
 gfx-hal = { path = "../../hal", version = "0.2" }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 winit = { version = "0.19", optional = true }
