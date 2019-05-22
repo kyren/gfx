@@ -1,6 +1,6 @@
 use crate::hal::window::Extent2D;
 use crate::hal::{self, format as f, image, memory, CompositeAlpha};
-use crate::{native, Backend as B, Device, PhysicalDevice, QueueFamily};
+use crate::{native, Backend as B, Device, GlContainer, PhysicalDevice, QueueFamily};
 
 use glow::Context;
 
@@ -266,7 +266,7 @@ impl Device {
 impl hal::Instance for Surface {
     type Backend = B;
     fn enumerate_adapters(&self) -> Vec<hal::Adapter<B>> {
-        let adapter = PhysicalDevice::new_adapter(|s| 0 as *const _, Some(&self.window.canvas_id)); // TODO: Move to `self` like native/window
+        let adapter = PhysicalDevice::new_adapter(GlContainer::from_canvas(&self.window.canvas_id)); // TODO: Move to `self` like native/window
         vec![adapter]
     }
 }
