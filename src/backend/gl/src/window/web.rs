@@ -1,24 +1,13 @@
 use crate::hal::window::Extent2D;
 use crate::hal::{self, format as f, image, memory, CompositeAlpha};
-use crate::{native, Backend as B, Device, GlContainer, PhysicalDevice, QueueFamily};
+use crate::{native, Backend as B, Device, GlContainer, PhysicalDevice, QueueFamily, Starc};
 
 use glow::Context;
 
 fn get_window_extent(window: &Window) -> image::Extent {
-    use wasm_bindgen::JsCast;
-
-    let canvas = web_sys::window()
-        .unwrap()
-        .document()
-        .unwrap()
-        .get_element_by_id(&window.canvas_id)
-        .unwrap()
-        .dyn_into::<web_sys::HtmlCanvasElement>()
-        .unwrap();
-
     image::Extent {
-        width: canvas.width() as image::Size,
-        height: canvas.height() as image::Size,
+        width: window.canvas.width() as image::Size,
+        height: window.canvas.height() as image::Size,
         depth: 1,
     }
 }
@@ -33,7 +22,15 @@ struct PixelFormat {
 
 #[derive(Clone, Debug)]
 pub struct Window {
-    pub canvas_id: String,
+    canvas: Starc<web_sys::HtmlCanvasElement>,
+}
+
+impl Window {
+    pub fn from_canvas(canvas: web_sys::HtmlCanvasElement) -> Window {
+        Window {
+            canvas: Starc::new(canvas),
+        }
+    }
 }
 
 impl Window {
@@ -266,7 +263,7 @@ impl Device {
 impl hal::Instance for Surface {
     type Backend = B;
     fn enumerate_adapters(&self) -> Vec<hal::Adapter<B>> {
-        let adapter = PhysicalDevice::new_adapter(GlContainer::from_canvas(&self.window.canvas_id)); // TODO: Move to `self` like native/window
+        let adapter = PhysicalDevice::new_adapter(GlContainer::from_canvas((*self.window.canvas).clone())); // TODO: Move to `self` like native/window
         vec![adapter]
     }
 }

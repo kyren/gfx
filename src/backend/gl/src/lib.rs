@@ -66,17 +66,9 @@ impl GlContainer {
     }
 
     #[cfg(target_arch = "wasm32")]
-    fn from_canvas(canvas_id: &str) -> GlContainer {
+    fn from_canvas(canvas: web_sys::HtmlCanvasElement) -> GlContainer {
         let context = {
             use wasm_bindgen::JsCast;
-            let document = web_sys::window()
-                .and_then(|win| win.document())
-                .expect("Cannot get document");
-            let canvas = document
-                .get_element_by_id(canvas_id)
-                .expect("No canvas element with given id")
-                .dyn_into::<web_sys::HtmlCanvasElement>()
-                .expect("Cannot get canvas element");
             let context_options = js_sys::Object::new();
             js_sys::Reflect::set(
                 &context_options,
