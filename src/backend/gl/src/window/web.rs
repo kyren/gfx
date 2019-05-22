@@ -166,6 +166,7 @@ impl Device {
 
         let (int_format, iformat, itype) = match config.format {
             f::Format::Rgba8Unorm => (glow::RGBA8, glow::RGBA, glow::UNSIGNED_BYTE),
+            f::Format::Bgra8Unorm => (glow::RGBA8, glow::BGRA, glow::UNSIGNED_BYTE),
             f::Format::Rgba8Srgb => (glow::SRGB8_ALPHA8, glow::RGBA, glow::UNSIGNED_BYTE),
             _ => unimplemented!(),
         };
