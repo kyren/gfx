@@ -1539,6 +1539,39 @@ impl d::Device<B> for Device {
         }
     }
 
+    #[cfg(target_arch = "wasm32")]
+    unsafe fn wait_for_fences<I>(
+        &self,
+        fences: I,
+        wait: d::WaitFor,
+        timeout_ns: u64,
+    ) -> Result<bool, d::OomOrDeviceLost>
+    where
+        I: IntoIterator,
+        I::Item: Borrow<n::Fence>,
+    {
+        // TODO: Actually use web timing functions similarly to `hal::Device::wait_for_fences`, or
+        // use that implementation directly when std on wasm32 implements `std::time` properly.
+        match wait {
+            d::WaitFor::All => {
+                for fence in fences {
+                    if !self.wait_for_fence(fence.borrow(), timeout_ns)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            d::WaitFor::Any => {
+                for fence in fences {
+                    if self.wait_for_fence(fence.borrow(), timeout_ns)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+        }
+    }
+
     unsafe fn get_fence_status(&self, fence: &n::Fence) -> Result<bool, d::DeviceLost> {
         let gl = &self.share.context;
         if let Some(sync) = fence.0.get() {
