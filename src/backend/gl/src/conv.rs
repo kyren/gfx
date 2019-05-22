@@ -46,10 +46,12 @@ pub fn wrap_to_gl(w: i::WrapMode) -> u32 {
 
 pub fn buffer_usage_to_gl_target(usage: buffer::Usage) -> Option<u32> {
     use self::buffer::Usage;
-    match usage & (Usage::UNIFORM | Usage::INDEX | Usage::VERTEX | Usage::INDIRECT) {
+    match usage & (Usage::UNIFORM | Usage::INDEX | Usage::VERTEX | Usage::INDIRECT | Usage::TRANSFER_SRC | Usage::TRANSFER_DST) {
         Usage::UNIFORM => Some(glow::UNIFORM_BUFFER),
         Usage::INDEX => Some(glow::ELEMENT_ARRAY_BUFFER),
         Usage::VERTEX => Some(glow::ARRAY_BUFFER),
+        Usage::TRANSFER_SRC => Some(glow::PIXEL_UNPACK_BUFFER),
+        Usage::TRANSFER_DST => Some(glow::PIXEL_PACK_BUFFER),
         Usage::INDIRECT => unimplemented!(),
         _ => None,
     }

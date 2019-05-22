@@ -1035,7 +1035,7 @@ impl d::Device<B> for Device {
         let target = buffer.target;
 
         if offset == 0 {
-            memory.first_bound_buffer.set(Some(buffer.raw));
+            memory.first_bound_buffer.set(Some((buffer.raw, target)));
         } else {
             assert!(memory.first_bound_buffer.get().is_some());
         }
@@ -1082,15 +1082,18 @@ impl d::Device<B> for Device {
         range: R,
     ) -> Result<*mut u8, mapping::Error> {
         let gl = &self.share.context;
-        let buffer = match memory.first_bound_buffer.get() {
+        let (buffer, target) = match memory.first_bound_buffer.get() {
             None => panic!("No buffer has been bound yet, can't map memory!"),
             Some(other) => other,
         };
 
         let caps = &self.share.private_caps;
 
-        assert!(caps.buffer_role_change);
-        let target = glow::PIXEL_PACK_BUFFER;
+        let target = if caps.buffer_role_change {
+            glow::PIXEL_PACK_BUFFER
+        } else {
+            target
+        };
         let access = memory.map_flags();
 
         let offset = *range.start().unwrap_or(&0);
@@ -1116,11 +1119,16 @@ impl d::Device<B> for Device {
 
     unsafe fn unmap_memory(&self, memory: &n::Memory) {
         let gl = &self.share.context;
-        let buffer = match memory.first_bound_buffer.get() {
+        let (buffer, target) = match memory.first_bound_buffer.get() {
             None => panic!("No buffer has been bound yet, can't map memory!"),
             Some(other) => other,
         };
-        let target = glow::PIXEL_PACK_BUFFER;
+
+        let target = if self.share.private_caps.buffer_role_change {
+            glow::PIXEL_PACK_BUFFER
+        } else {
+            target
+        };
 
         gl.bind_buffer(target, Some(buffer));
 

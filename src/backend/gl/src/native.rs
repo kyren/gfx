@@ -229,7 +229,7 @@ pub enum ShaderModule {
 #[derive(Debug)]
 pub struct Memory {
     pub(crate) properties: Properties,
-    pub(crate) first_bound_buffer: Cell<Option<RawBuffer>>,
+    pub(crate) first_bound_buffer: Cell<Option<(RawBuffer, u32)>>,
     /// Allocation size
     pub(crate) size: u64,
     pub(crate) emulate_map_allocation: RefCell<*mut u8>,
