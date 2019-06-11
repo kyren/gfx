@@ -72,24 +72,9 @@ impl GlContainer {
     }
 
     #[cfg(target_arch = "wasm32")]
-    fn from_new_canvas() -> GlContainer {
+    fn from_canvas(canvas: web_sys::HtmlCanvasElement) -> GlContainer {
         let context = {
             use wasm_bindgen::JsCast;
-            let document = web_sys::window()
-                .and_then(|win| win.document())
-                .expect("Cannot get document");
-            let canvas = document
-                .create_element("canvas")
-                .expect("Cannot create canvas")
-                .dyn_into::<web_sys::HtmlCanvasElement>()
-                .expect("Cannot get canvas element");
-            // TODO: Remove hardcoded width/height
-            canvas
-                .set_attribute("width", "640")
-                .expect("Cannot set width");
-            canvas
-                .set_attribute("height", "480")
-                .expect("Cannot set height");
             let context_options = js_sys::Object::new();
             js_sys::Reflect::set(
                 &context_options,
@@ -102,11 +87,6 @@ impl GlContainer {
                 .expect("Cannot create WebGL2 context")
                 .and_then(|context| context.dyn_into::<web_sys::WebGl2RenderingContext>().ok())
                 .expect("Cannot convert into WebGL2 context");
-            document
-                .body()
-                .expect("Cannot get document body")
-                .append_child(&canvas)
-                .expect("Cannot insert canvas into document body");
             glow::web::Context::from_webgl2_context(webgl2_context)
         };
         GlContainer { context }

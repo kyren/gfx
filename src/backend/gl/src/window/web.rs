@@ -1,13 +1,13 @@
 use crate::hal::window::Extent2D;
 use crate::hal::{self, format as f, image, memory, CompositeAlpha};
-use crate::{native, Backend as B, Device, GlContainer, PhysicalDevice, QueueFamily};
+use crate::{native, Backend as B, Device, GlContainer, PhysicalDevice, QueueFamily, Starc};
 
 use glow::Context;
 
 fn get_window_extent(window: &Window) -> image::Extent {
     image::Extent {
-        width: 640 as image::Size,
-        height: 480 as image::Size,
+        width: window.canvas.width() as image::Size,
+        height: window.canvas.height() as image::Size,
         depth: 1,
     }
 }
@@ -20,10 +20,18 @@ struct PixelFormat {
     multisampling: Option<u32>,
 }
 
-#[derive(Clone, Copy, Debug)]
-pub struct Window;
+#[derive(Clone, Debug)]
+pub struct Window {
+    canvas: Starc<web_sys::HtmlCanvasElement>,
+}
 
 impl Window {
+    pub fn from_canvas(canvas: web_sys::HtmlCanvasElement) -> Window {
+        Window {
+            canvas: Starc::new(canvas),
+        }
+    }
+
     fn get_pixel_format(&self) -> PixelFormat {
         PixelFormat {
             color_bits: 24,
@@ -41,7 +49,7 @@ impl Window {
     pub fn resize<T>(&self, parameter: T) {}
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct Swapchain {
     pub(crate) window: Window,
     pub(crate) extent: Extent2D,
@@ -59,14 +67,14 @@ impl hal::Swapchain<B> for Swapchain {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct Surface {
     window: Window,
 }
 
 impl Surface {
     pub fn from_window(window: Window) -> Self {
-        Surface { window: Window }
+        Surface { window }
     }
 
     pub fn get_window(&self) -> &Window {
@@ -260,7 +268,7 @@ impl Device {
 impl hal::Instance for Surface {
     type Backend = B;
     fn enumerate_adapters(&self) -> Vec<hal::Adapter<B>> {
-        let adapter = PhysicalDevice::new_adapter((), GlContainer::from_new_canvas()); // TODO: Move to `self` like native/window
+        let adapter = PhysicalDevice::new_adapter((), GlContainer::from_canvas((*self.window.canvas).clone())); // TODO: Move to `self` like native/window
         vec![adapter]
     }
 }
