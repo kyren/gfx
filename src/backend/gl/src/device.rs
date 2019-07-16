@@ -1276,6 +1276,9 @@ impl d::Device<B> for Device {
             Format::Rgba8Srgb => (glow::SRGB8_ALPHA8, glow::RGBA, glow::UNSIGNED_BYTE),
             Format::Bgra8Srgb => (glow::SRGB8_ALPHA8, glow::BGRA, glow::UNSIGNED_BYTE),
             Format::R8Unorm => (glow::R8, glow::RED, glow::UNSIGNED_BYTE),
+            Format::R8Uint => (glow::R8UI, glow::RED_INTEGER, glow::UNSIGNED_BYTE),
+            Format::Rg16Unorm => (glow::RG16, glow::RG, glow::UNSIGNED_SHORT),
+            Format::Rg16Uint => (glow::RG16UI, glow::RG_INTEGER, glow::UNSIGNED_SHORT),
             Format::D32Sfloat => (
                 glow::DEPTH32F_STENCIL8,
                 glow::DEPTH_STENCIL,
