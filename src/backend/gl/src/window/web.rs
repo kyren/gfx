@@ -1,10 +1,12 @@
-use crate::{conv, device::Device, native, Backend as B, GlContainer, PhysicalDevice, QueueFamily};
+use crate::{conv, device::Device, native, Backend as B, GlContainer, PhysicalDevice, QueueFamily, Starc};
 use arrayvec::ArrayVec;
 use glow::Context as _;
 use hal::{adapter::Adapter, format as f, image, window};
 use std::iter;
+use web_sys::{WebGl2RenderingContext, HtmlCanvasElement};
+use wasm_bindgen::JsCast;
 
-
+#[derive(Clone, Debug)]
 struct PixelFormat {
     color_bits: u32,
     alpha_bits: u32,
@@ -13,33 +15,58 @@ struct PixelFormat {
     multisampling: Option<u32>,
 }
 
-#[derive(Clone, Copy, Debug)]
-pub struct Window;
+#[derive(Clone, Debug)]
+pub struct Instance {
+    context: Starc<WebGl2RenderingContext>,
+    canvas: Starc<HtmlCanvasElement>,
+}
 
-impl Window {
-    fn get_pixel_format(&self) -> PixelFormat {
-        PixelFormat {
-            color_bits: 24,
-            alpha_bits: 8,
-            srgb: false,
-            double_buffer: true,
-            multisampling: None,
-        }
+impl Instance {
+    pub fn create(_name: &str, _version: u32) -> Result<Self, hal::UnsupportedBackend> {
+        let document = web_sys::window()
+            .and_then(|win| win.document())
+            .expect("Cannot get document");
+        let canvas = document
+            .create_element("canvas")
+            .expect("Cannot create canvas")
+            .dyn_into::<HtmlCanvasElement>()
+            .expect("Cannot get canvas element");
+        let context_options = js_sys::Object::new();
+        js_sys::Reflect::set(
+            &context_options,
+            &"antialias".into(),
+            &wasm_bindgen::JsValue::FALSE,
+        ).expect("Cannot create context options");
+        let context = canvas
+            .get_context_with_context_options("webgl2", &context_options)
+            .expect("Cannot create WebGL2 context")
+            .and_then(|context| context.dyn_into::<WebGl2RenderingContext>().ok())
+            .expect("Cannot convert into WebGL2 context");
+        Ok(Instance {
+            context: Starc::new(context),
+            canvas: Starc::new(canvas),
+        })
     }
 
-    pub fn get_window_extent(&self) -> image::Extent {
-        image::Extent {
-            width: 640,
-            height: 480,
-            depth: 1,
-        }
+    pub fn create_surface_with_element(&self) -> (Surface, HtmlCanvasElement) {
+        (
+            Surface {
+                canvas: Starc::clone(&self.canvas),
+                swapchain: None,
+                renderbuffer: None,
+            },
+            (*self.canvas).clone(),
+        )
     }
 
-    pub fn get_hidpi_factor(&self) -> f64 {
-        1.0
-    }
+}
 
-    pub fn resize<T>(&self, parameter: T) {}
+impl hal::Instance for Instance {
+    type Backend = B;
+    fn enumerate_adapters(&self) -> Vec<Adapter<B>> {
+        let adapter = PhysicalDevice::new_adapter((), GlContainer::from_webgl2_context((*self.context).clone())); // TODO: Move to `self` like native/window
+        vec![adapter]
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -62,30 +89,14 @@ impl window::Swapchain<B> for Swapchain {
 
 #[derive(Clone, Debug)]
 pub struct Surface {
+    canvas: Starc<web_sys::HtmlCanvasElement>,
     pub(crate) swapchain: Option<Swapchain>,
     renderbuffer: Option<native::Renderbuffer>,
 }
 
 impl Surface {
-    pub fn from_window(_window: &Window) -> Self {
-        Surface {
-            swapchain: None,
-            renderbuffer: None,
-        }
-    }
-
     fn swapchain_formats(&self) -> Vec<f::Format> {
-        let pixel_format = Window.get_pixel_format();
-        let color_bits = pixel_format.color_bits;
-        let alpha_bits = pixel_format.alpha_bits;
-        let srgb = pixel_format.srgb;
-
-        // TODO: expose more formats
-        match (color_bits, alpha_bits, srgb) {
-            (24, 8, true) => vec![f::Format::Rgba8Srgb, f::Format::Bgra8Srgb],
-            (24, 8, false) => vec![f::Format::Rgba8Unorm, f::Format::Bgra8Unorm],
-            _ => vec![],
-        }
+        vec![f::Format::Rgba8Unorm, f::Format::Bgra8Unorm]
     }
 }
 
@@ -98,15 +109,13 @@ impl window::Surface<B> for Surface {
         Option<Vec<f::Format>>,
         Vec<window::PresentMode>,
     ) {
-        let ex = Window.get_window_extent();
-        let extent = window::Extent2D::from(ex);
+        let extent = hal::window::Extent2D {
+            width: self.canvas.width(),
+            height: self.canvas.height(),
+        };
 
         let caps = window::SurfaceCapabilities {
-            image_count: if Window.get_pixel_format().double_buffer {
-                2 ..= 2
-            } else {
-                1 ..= 1
-            },
+            image_count: 2 ..= 2,
             current_extent: Some(extent),
             extents: extent ..= extent,
             max_image_layers: 1,
@@ -188,13 +197,5 @@ impl window::PresentationSurface<B> for Surface {
     ) -> Result<(Self::SwapchainImage, Option<window::Suboptimal>), window::AcquireError> {
         let image = native::ImageView::Renderbuffer(self.renderbuffer.unwrap());
         Ok((image, None))
-    }
-}
-
-impl hal::Instance for Surface {
-    type Backend = B;
-    fn enumerate_adapters(&self) -> Vec<Adapter<B>> {
-        let adapter = PhysicalDevice::new_adapter((), GlContainer::from_new_canvas()); // TODO: Move to `self` like native/window
-        vec![adapter]
     }
 }

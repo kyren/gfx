@@ -358,12 +358,12 @@ pub(crate) fn query_all(gl: &GlContainer) -> (Info, Features, LegacyFeatures, Li
         optimal_buffer_copy_pitch_alignment: 1,
         min_texel_buffer_offset_alignment: 1,
         min_uniform_buffer_offset_alignment: get_u64(gl, glow::UNIFORM_BUFFER_OFFSET_ALIGNMENT)
-            .unwrap_or(1024),
+            .unwrap_or(256),
         min_storage_buffer_offset_alignment: get_u64(
             gl,
             glow::SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT,
         )
-        .unwrap_or(1024),
+        .unwrap_or(256),
         framebuffer_color_sample_counts: max_samples_mask,
         non_coherent_atom_size: 1,
         max_color_attachments: get_usize(gl, glow::MAX_COLOR_ATTACHMENTS).unwrap_or(1),

@@ -2,7 +2,7 @@
 //! outside of the graphics development environment.
 
 extern crate gfx_hal as hal;
-#[cfg(feature = "winit")]
+#[cfg(all(feature = "winit", not(target_arch = "wasm32")))]
 extern crate winit;
 
 use hal::range::RangeArg;
@@ -1003,7 +1003,7 @@ impl Instance {
         Ok(Instance)
     }
 
-    #[cfg(feature = "winit")]
+    #[cfg(all(feature = "winit", not(target_arch = "wasm32")))]
     pub fn create_surface(&self, _: &winit::window::Window) -> Surface {
         unimplemented!()
     }
